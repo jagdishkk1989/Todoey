@@ -9,7 +9,7 @@
 import UIKit
 import CoreData
 
-class TodoListViewController: UITableViewController {
+class TodoListViewController: UITableViewController{
 
     var itemArray = [Item]()
     
@@ -18,13 +18,26 @@ class TodoListViewController: UITableViewController {
     
      let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
     
+    var selectedCategory : ItemCategory?{
+        didSet{
+            
+
+            let request:NSFetchRequest<Item> = Item.fetchRequest()
+            
+            loadItems(with: request)
+        }
+    }
+    
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+      //  searchBar.delegate  = self
        
        
         print(dataFilePath)
         
-        loadItems()
+        let request:NSFetchRequest<Item> = Item.fetchRequest()
+        //loadItems(with: request)
 
 //        if let items = defaults.array(forKey: "TodoListArray") as? [Item] {
 //             itemArray = items
@@ -53,13 +66,7 @@ class TodoListViewController: UITableViewController {
         }
         return cell
     }
-    
-    //  Tells the delegate that a specified row is about to be selected.
-    
-//    override func tableView(_: UITableView, willSelectRowAt: IndexPath) -> IndexPath? {
-//
-//    }
-//
+   
     //  Tells the delegate that the specified row is now selected.
     
     override func tableView(_: UITableView, didSelectRowAt indexPath: IndexPath){
@@ -87,19 +94,7 @@ class TodoListViewController: UITableViewController {
         tableView.deselectRow(at: indexPath, animated: true)
     }
     
-    //Tells the delegate that a specified row is about to be deselected.
-    
-//    override func tableView(_: UITableView, willDeselectRowAt: IndexPath) -> IndexPath?{
-//
-//    }
-    
-    //  Tells the delegate that the specified row is now deselected.
-
-//    override func tableView(_: UITableView, didDeselectRowAt: IndexPath){
-//
-//    }
-    
-    // Add Todo Item
+   
     
     
     @IBAction func addButtonPressed(_ sender: Any) {
@@ -117,6 +112,7 @@ class TodoListViewController: UITableViewController {
             
             newItem.title = textField.text ?? "new Item"
             newItem.done = false
+            newItem.parentCategory = self.selectedCategory
             self.itemArray.append(newItem)
             
            // self.defaults.set(self.itemArray, forKey: "TodoListArray")
@@ -148,15 +144,26 @@ class TodoListViewController: UITableViewController {
         self.tableView.reloadData()
     }
     
-    func loadItems(){
+    func loadItems(with request : NSFetchRequest<Item>, predicate:NSPredicate? = nil){
         
-        let request:NSFetchRequest<Item> = Item.fetchRequest()
+        print(selectedCategory?.name)
+        
+        let categoryPredicate = NSPredicate(format: "parentCategory.name MATCHES %@", selectedCategory!.name!)
+        
+        if let additionalPredicate = predicate {
+           request.predicate  =  NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate, additionalPredicate])
+        }else{
+            request.predicate = categoryPredicate
+        }
         
         do{
         itemArray =  try context.fetch(request)
         }catch{
             print("Error fetching context,\(error)")
         }
+        
+        tableView.reloadData()
+        
 //        if let data = try? Data(contentsOf: dataFilePath!){
 //            let decoder = PropertyListDecoder()
 //            do{
@@ -169,5 +176,37 @@ class TodoListViewController: UITableViewController {
 //
 //        }
     }
+    
+   
 }
 
+extension TodoListViewController : UISearchBarDelegate{
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        let request:NSFetchRequest<Item> = Item.fetchRequest()
+        
+        let searchpredicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
+        
+       // request.predicate = predicate
+        
+        let sortDescriptor = NSSortDescriptor(key: "title", ascending: true)
+        
+        request.sortDescriptors = [sortDescriptor]
+        
+        loadItems(with: request, predicate:searchpredicate)
+        
+        print(searchBar.text!)
+    }
+    
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        if searchBar.text?.count == 0{
+            let request:NSFetchRequest<Item> = Item.fetchRequest()
+            
+            loadItems(with: request)
+            
+            DispatchQueue.main.async {
+              searchBar.resignFirstResponder()
+            }
+            
+        }
+    }
+}
